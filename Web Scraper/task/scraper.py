@@ -1,10 +1,12 @@
 import requests
+import re
+import string
 import sys
 
 from bs4 import BeautifulSoup as BS
 
-MOVIE = {}
-URL = input("Input your URL:").strip()
+# URL = input("Input your URL:").strip()
+URL = "https://www.nature.com/nature/articles?sort=PubDate&year=2020&page=3"
 
 
 def get_url():
@@ -12,34 +14,33 @@ def get_url():
     if response.status_code == 200:
         return response
     else:
-        # sys.exit(f"The URL returned {request.status_code}!")
-        print(f"The URL returned {response.status_code}!")
-        sys.exit()
+        sys.exit(f"The URL returned {response.status_code}!")
 
 
-def save_content(response):
+def save_content(file_name, content, ext='txt', mode='wb'):
     try:
-        file = open('source.html', 'wb')
-        file.write(response.content)
+        file = open(f'{file_name}.{ext}', f'{mode}')
+        file.write(content.encode())
         file.close()
-        print("Content saved.")
-    except SystemError:
-        print("Oops, something wrong")
+        print(f"Content saved into {file_name}.{ext}")
+    except SystemError as SE:
+        print("Oops, something wrong:", SE)
 
 
-def find_movie(response):
-    save_content(response)
-    if "imdb" and "title" in URL:
-        if response.status_code == 200:
-            soup = BS(response.content, 'html.parser')
-            MOVIE = {'title': soup.find("h1").text,
-                     'description': soup.select_one("[data-testid='plot-l']").text}
-            print(MOVIE)
-        else:
-            print("Invalid movie page!")
-    else:
-        print("Invalid movie page!")
+def find_news_article(response):
+    soup_main = BS(response.content, 'html.parser')
+    all_articles = soup_main.find_all("article")
+    for article in all_articles:
+        type_of_article = article.find('span', class_="c-meta__type").text
+        if type_of_article == "News":
+            raw_title = article.find('a').text.strip()
+            title = raw_title.translate(str.maketrans('', '', string.punctuation)).replace(' ', '_')
+            link_to_article = "https://www.nature.com" + article.a.get('href')
+            get_news_article = requests.get(link_to_article)
+            soup_news = BS(get_news_article.content, 'html.parser')
+            body_article = soup_news.find(class_=re.compile(".*article-body.*")).text.strip()
+            save_content(title, body_article)
 
 
 if __name__ == '__main__':
-    find_movie(get_url())
+    find_news_article(get_url())
